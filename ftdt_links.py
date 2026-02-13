@@ -11,6 +11,20 @@ IMITATING MathWorks®Simulink
 ONLY FOR STUDY (OR FUN)
 '''
 
+#ANSI
+RESET = "\033[0m"
+BOLD = "\033[1m"
+
+RED = "\033[31m"
+GREEN = "\033[32m"
+YELLOW = "\033[33m"
+BLUE = "\033[34m"
+CYAN = "\033[36m"
+
+BOLD_RED = "\033[1;31m"
+BOLD_GREEN = "\033[1;32m"
+BOLD_BLUE = "\033[1;34m"
+#ANSI
 
 class Medium:
     def __init__(self,
@@ -75,7 +89,7 @@ class Param_Space:
                 is_valid = False
 
         if is_valid:
-        #坐标转索引
+        #coordinates to index conversion
 
             x_0 = self.rangeX + x_0 +1
             x_1 = self.rangeX + x_1 +1
@@ -84,7 +98,7 @@ class Param_Space:
             z_0 = self.rangeZ + z_0 +1
             z_1 = self.rangeZ + z_1 +1
         
-        #设置参数
+        #Set Parameters
             self.values[0,x_0:x_1+1,y_0:y_1+1,z_0:z_1+1] = med.eps_x
             self.values[1,x_0:x_1+1,y_0:y_1+1,z_0:z_1+1] = med.eps_y
             self.values[2,x_0:x_1+1,y_0:y_1+1,z_0:z_1+1] = med.eps_z
@@ -214,26 +228,135 @@ class Current_Field(Vector_Field):
 
 
 #ABOVE:BASIC ELECTROMEGNETICS EQUATION
-        
-#NEXT:THE SOURCE OF FIELD.
 
-
-
-
-
-
-
-
-
-
-
-          
-
-
-
-
-
+class JSON:
+    def __init__(self,json_address:str='./database.json'):
+        self.json_address = json_address
+        f = open(json_address,'r',encoding = 'utf-8')
+        self.json_dict = json.load(f)
         
 
-        
-        
+
+    def DUMP(self):
+        f = open(self.json_address,'w',encoding = 'utf-8')
+        json_str = json.dumps(self.json_dict)
+        f.write(json_str)
+
+
+def medium_data_load (json_class:JSON,index:int)->Medium:
+    med = Medium(json_class.json_dict["medium"][index]['esp_r'][0],
+                 json_class.json_dict["medium"][index]['esp_r'][1],
+                 json_class.json_dict["medium"][index]['esp_r'][2],
+                 json_class.json_dict["medium"][index]['mu_r'][0],
+                 json_class.json_dict["medium"][index]['mu_r'][1],
+                 json_class.json_dict["medium"][index]['mu_r'][2],
+                 json_class.json_dict["medium"][index]['sigma'][0],
+                 json_class.json_dict["medium"][index]['sigma'][1],
+                 json_class.json_dict["medium"][index]['sigma'][2])
+    return med
+
+#ABOVE:JSON OPERATION
+
+
+
+
+
+
+
+#main source
+
+if __name__ == '__main__':
+    mode_id = int(input(f"{CYAN}Please choose the mode:\n{YELLOW}1 - medium data configuration\n2 - solver main\nmode:{RESET}"))
+    #BRANCH 1:DATABASE FOR MEDIUM
+    if (mode_id == 1):
+        print(f"{GREEN}MODE 1 START: DATABASE FOR MEDIUMS{RESET}")
+        #json initial:
+        Json = JSON()
+        #json initial finished;
+        while 1:
+            J_mode_id = int(input(f"{CYAN}Please choose the mode:{YELLOW}\n1 - ADD MODE\n2 - SHOW MODE \n3 - DELETE MODE:{RESET}"))
+
+            if J_mode_id == 1:
+                #start
+                #input by order
+                
+                #name
+                name = input("name of new medium:")
+                #epsilon_r x y z
+                esp_r = []
+                esp_r.append( np.float64( input("esp_r_x of new medium:") ) )
+                esp_r.append( np.float64( input("esp_r_y of new medium:") ) )
+                esp_r.append( np.float64( input("esp_r_z of new medium:") ) )
+
+                #mu_r x y z
+                mu_r = []
+                mu_r.append(np.float64( input("mu_r_x of new medium:")))
+                mu_r.append(np.float64( input("mu_r_y of new medium:")))
+                mu_r.append(np.float64( input("mu_r_z of new medium:")))
+
+                #sigma x y z
+                sigma = []
+                sigma.append(np.float64(input("sigma_x of new medium:")))
+                sigma.append(np.float64(input("sigma_y of new medium:")))
+                sigma.append(np.float64(input("sigma_z of new medium:")))
+
+                new_medium_dict = {"esp_r":esp_r,
+                                   "mu_r":mu_r,
+                                   "sigma":sigma,
+                                   "name":name}
+
+                #add to the JSON
+                Json.json_dict["medium"].append(new_medium_dict)
+                #DUMP
+                Json.DUMP()
+                #finish
+
+            elif J_mode_id == 2:
+                i = int(0);
+                for med in Json.json_dict['medium']:
+                    
+                    print(f"{CYAN}====name:{med["name"]}===={RESET}")
+                    print(f"index : {i}")
+                    print(f"esp_r_x :{med["esp_r"][0]}")
+                    print(f"esp_r_y :{med["esp_r"][1]}")
+                    print(f"esp_r_z :{med["esp_r"][2]}") 
+                    print(f"mu_r_x :{med["mu_r"][0]}")
+                    print(f"mu_r_y :{med["mu_r"][1]}")
+                    print(f"mu_r_z :{med["mu_r"][2]}")
+                    print(f"sigma_x :{med["sigma"][0]}")
+                    print(f"sigma_y :{med["sigma"][1]}")
+                    print(f"sigma_z :{med["sigma"][2]}")
+
+                    i += 1
+                    is_next = input(f"{CYAN}NEXT?[Y/n or others]:{RESET}")
+                    #是否翻页到下一个Medium
+                    if is_next == 'Y':
+                        continue
+                    else:
+                        break
+
+
+            elif J_mode_id == 3:
+                i = int(input(f"{YELLOW}The index of medium you want to delete:{RESET}"))
+                Json.json_dict['medium'].pop(i)
+                pass
+
+            else:
+                print(f"{RED}MODE ERROR:invalid mode")
+                exit(0)
+
+            
+
+
+    #BRANCH 2:ELECTROMAGNETICS SOLVER
+    elif (mode_id == 2):
+        print(f"{GREEN}MODE 2 START: ELECTROMAGNETIC FIELD SOLVER")
+        pass
+
+
+
+    else:
+        print(f"{RED}MODE ERROR:invalid mode")
+        exit(0)
+
+
