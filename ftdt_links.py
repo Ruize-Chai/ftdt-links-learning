@@ -27,6 +27,13 @@ BOLD_BLUE = "\033[1;34m"
 #ANSI
 
 class Medium:
+    '''
+    Medium
+    介质类
+    ----
+    用于存储介质参数数据
+    ----
+    '''
     def __init__(self,
                  eps_x_r:np.float64,eps_y_r:np.float64,eps_z_r:np.float64,
                  mu_x_r:np.float64,mu_y_r:np.float64,mu_z_r:np.float64,
@@ -44,7 +51,16 @@ class Medium:
         self.sigma_y = sigma_y
         self.sigma_z = sigma_z
 
+###################################################################################################################################
 class Param_Space:
+    '''
+    functions
+
+    1.__init__
+    2.set_UPML
+    3.set_medium
+    4.
+    '''
     def __init__(self,
                  rangeX:int,
                  rangeY:int,
@@ -56,7 +72,50 @@ class Param_Space:
                                 2*rangeX+1,
                                 2*rangeY+1,
                                 2*rangeZ+1),dtype = np.float64)
+        self.UPML = np.zeros((2*rangeX+1,
+                              2*rangeY+1,
+                              2*rangeZ+1),dtype = bool)
     
+    
+    def set_UPML(self,depth:int = 8):
+        """
+    Set A UPML layer to absorb the edge of electricmagnetic field,prevent from reflection or possible effect to the main calculation area.
+    We recommend a PML layer with depth of 8 grids.
+    We set UPML in the Parameter Space ,but work in the update layer.
+    """
+        #1.Set the slice edge according to the rangeX,rangeY,rangeZ and depth.
+
+        #X
+        UPML_X_left = depth
+        UPML_X_right = 2*self.rangeX-depth+1
+        #Y
+        UPML_Y_left = depth
+        UPML_Y_right = 2*self.rangeY-depth+1
+        #Z
+        UPML_Z_left = depth
+        UPML_Z_right = 2*self.rangeZ-depth+1
+
+        #2.Set Bools
+
+        self.UPML[:UPML_X_left,:,:] = True
+        self.UPML[UPML_X_right:,:,:] = True
+        self.UPML[:,:UPML_Y_left,:] = True
+        self.UPML[:,UPML_Y_right:,:,:]=True
+        self.UPML[:,:,:UPML_Z_left] = True
+        self.UPML[:,:,:UPML_Z_right:]=True
+
+        self.UPML_depth = depth
+
+        #Calculate the d(i,j)
+
+        #Calculate the sigma_max(i,j)
+
+        #Calculate the sigma_PML
+
+        #Then go to the field_update for update
+        pass
+
+
     def set_medium(self,
                    x_0:int,
                    x_1:int,
@@ -91,12 +150,12 @@ class Param_Space:
         if is_valid:
         #coordinates to index conversion
 
-            x_0 = self.rangeX + x_0 +1
-            x_1 = self.rangeX + x_1 +1
-            y_0 = self.rangeY + y_0 +1
-            y_1 = self.rangeY + y_1 +1
-            z_0 = self.rangeZ + z_0 +1
-            z_1 = self.rangeZ + z_1 +1
+            x_0 = self.rangeX + x_0
+            x_1 = self.rangeX + x_1
+            y_0 = self.rangeY + y_0
+            y_1 = self.rangeY + y_1
+            z_0 = self.rangeZ + z_0
+            z_1 = self.rangeZ + z_1
         
         #Set Parameters
             self.values[0,x_0:x_1+1,y_0:y_1+1,z_0:z_1+1] = med.eps_x
@@ -109,7 +168,7 @@ class Param_Space:
             self.values[7,x_0:x_1+1,y_0:y_1+1,z_0:z_1+1] = med.sigma_y
             self.values[8,x_0:x_1+1,y_0:y_1+1,z_0:z_1+1] = med.sigma_z
 
-
+#######################################################################################################################################
 class Vector_Field:
      def __init__(self,
                   rangeX,rangeY,rangeZ):
@@ -128,34 +187,40 @@ class Vector_Field:
      
      #partial A_x/partial j
      def x_partial_x(self):
-         return self.i_partial_j(0,1)
+         return self.i_partial_j(0,0)
      def x_partial_y(self):
-         return self.i_partial_j(0,2)
+         return self.i_partial_j(0,1)
      def x_partial_z(self):
-         return self.i_partial_j(0,3)
+         return self.i_partial_j(0,2)
      
      #partial A_y/partial j
      def y_partial_x(self):
-         return self.i_partial_j(1,1)
+         return self.i_partial_j(1,0)
      def y_partial_y(self):
-         return self.i_partial_j(1,2)
+         return self.i_partial_j(1,1)
      def y_partial_z(self):
-         return self.i_partial_j(1,3)
+         return self.i_partial_j(1,2)
      
      #partial A_z/partial j
      def z_partial_x(self):
-         return self.i_partial_j(2,1)
+         return self.i_partial_j(2,0)
      def z_partial_y(self):
-         return self.i_partial_j(2,2)
+         return self.i_partial_j(2,1)
      def z_partial_z(self):
-         return self.i_partial_j(2,3)
+         return self.i_partial_j(2,2)
 
      def bind_param_space(self,param_space:Param_Space):
         self.Param_Space = param_space
         pass
+     
+     def bind_UPML(self):
+        self.UPML = self.Param_Space.UPML
+        self.UPML_depth = self.Param_Space.UPML_depth
+     
+
         
 
-
+###############################################################################################################################
 
 
 class Electric_Field(Vector_Field):
@@ -171,6 +236,8 @@ class Electric_Field(Vector_Field):
 
     def bind_current_field(self,J:Current_Field):
         self.J = J
+
+
         
 
     def update(self):
@@ -184,9 +251,7 @@ class Electric_Field(Vector_Field):
                           (self.h/self.d)*(self.H.y_partial_x()-self.H.x_partial_y()-self.J.values[2])/(self.Param_Space.values[2])
                           )
         
-
-
-
+##################################################################################################################################
 class Magnetic_Field(Vector_Field):
     def __init__(self,rangeX,rangeY,rangeZ,time_step,grid_step):
         super().__init__(rangeX,rangeY,rangeZ)
@@ -202,6 +267,7 @@ class Magnetic_Field(Vector_Field):
     def bind_current_field(self,J:Current_Field):
         self.J = J
 
+        #B:update
     def update(self):
         self.values[0] = (self.values[0] -
                           (self.h/self.d)*(self.E.z_partial_y()-self.E.y_partial_z())/(self.Param_Space.values[0]))
@@ -210,7 +276,7 @@ class Magnetic_Field(Vector_Field):
         self.values[2] = (self.values[2] -
                           (self.h/self.d)*(self.E.y_partial_x()-self.E.x_partial_y())/(self.Param_Space.values[2]))
         
-
+#########################################################################################################################################
 class Current_Field(Vector_Field):
 
     def __init__(self,rangeX,rangeY,rangeZ):
@@ -221,14 +287,21 @@ class Current_Field(Vector_Field):
         self.E = E
         
 
+    
     def update(self):
-        self.values[0] = self.values[0] + self.Param_Space.values[6]*self.E.values[0]
-        self.values[1] = self.values[1] + self.Param_Space.values[7]*self.E.values[1]
-        self.values[2] = self.values[2] + self.Param_Space.values[8]*self.E.values[2]
+        '''
+    Function:
+    Current_Field.update()
+    ----------
+    根据本构关系更新电场
+    ----------
+    '''
+        self.values[0] = self.Param_Space.values[6]*self.E.values[0]
+        self.values[1] = self.Param_Space.values[7]*self.E.values[1]
+        self.values[2] = self.Param_Space.values[8]*self.E.values[2]
 
-
-#ABOVE:BASIC ELECTROMEGNETICS EQUATION
-
+       
+#############################################################################################################################################
 class JSON:
     def __init__(self,json_address:str='./database.json'):
         self.json_address = json_address
@@ -242,7 +315,7 @@ class JSON:
         json_str = json.dumps(self.json_dict)
         f.write(json_str)
 
-
+################
 def medium_data_load (json_class:JSON,index:int)->Medium:
     med = Medium(json_class.json_dict["medium"][index]['esp_r'][0],
                  json_class.json_dict["medium"][index]['esp_r'][1],
@@ -254,14 +327,13 @@ def medium_data_load (json_class:JSON,index:int)->Medium:
                  json_class.json_dict["medium"][index]['sigma'][1],
                  json_class.json_dict["medium"][index]['sigma'][2])
     return med
-
-#ABOVE:JSON OPERATION
-
+##############
 
 
 
 
 
+#############################################################################################################################################
 
 #main source
 
@@ -273,7 +345,7 @@ if __name__ == '__main__':
         #json initial:
         Json = JSON()
         #json initial finished;
-        while 1:
+        while True:
             J_mode_id = int(input(f"{CYAN}Please choose the mode:{YELLOW}\n1 - ADD MODE\n2 - SHOW MODE \n3 - DELETE MODE:{RESET}"))
 
             if J_mode_id == 1:
@@ -336,10 +408,12 @@ if __name__ == '__main__':
                         break
 
 
+
+
+            #报错
             elif J_mode_id == 3:
                 i = int(input(f"{YELLOW}The index of medium you want to delete:{RESET}"))
                 Json.json_dict['medium'].pop(i)
-                pass
 
             else:
                 print(f"{RED}MODE ERROR:invalid mode")
@@ -352,9 +426,7 @@ if __name__ == '__main__':
     elif (mode_id == 2):
         print(f"{GREEN}MODE 2 START: ELECTROMAGNETIC FIELD SOLVER")
         pass
-
-
-
+        
     else:
         print(f"{RED}MODE ERROR:invalid mode")
         exit(0)
